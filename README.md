@@ -69,3 +69,5 @@ GitHub Pagesのワークフローでも、JavaScript構文確認、モデル検�
 
 - [`docs/DATA_STATUS.md`](docs/DATA_STATUS.md)
 - [`docs/THIRD_PARTY_ASSETS.md`](docs/THIRD_PARTY_ASSETS.md)
+
+構造試作版：v0.2.0
