@@ -24,6 +24,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Validate JavaScript modules
+        run: |
+          node --check site/assets/anatomy.js
+          node --check site/assets/data.js
+          node --check site/assets/mouth.js
+          node --check site/assets/teacher.js
+          node --check site/assets/learner.js
+          node --test tests/model.test.mjs
+
+      - name: Fetch pinned CC0 reference assets
+        run: bash ./scripts/fetch_reference_assets.sh
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
