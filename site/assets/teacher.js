@@ -1,4 +1,5 @@
 import { APP_VERSION, defaultState, profiles, scenes, sounds } from './data.js';
+import { ANATOMY_MODEL_STATUS } from './anatomy.js';
 import { MouthStage } from './mouth.js';
 
 const STORAGE_KEY = 'pronunciation-comparison-state-v1';
@@ -93,31 +94,22 @@ function renderControls() {
 function renderTeacherInfo() {
   const { sound, profile, candidate, japanese } = getCurrentModels();
   elements.profileWarning.textContent = `${profile.warning} ${sound.note}`;
-  elements.modelNote.textContent = '口腔図は発音運動を理解するための簡略モデルです。唯一の正解や個人の実際の口腔形状を表すものではありません。';
+  elements.modelNote.textContent = `${ANATOMY_MODEL_STATUS.description} 現在の座標はUIとアニメーション構造の検証値であり、授業提示・発音診断には使用できません。`;
 
   makeInfoRows(elements.japaneseInfo, [
-    ['IPA', japanese.ipa],
-    ['調音点', japanese.place],
-    ['調音法', japanese.manner],
-    ['声', japanese.voicing],
-    ['息', japanese.airflow],
-    ['唇', japanese.lips],
-    ['声帯', japanese.glottis]
+    ['IPA', japanese.ipa], ['調音点', japanese.place], ['調音法', japanese.manner],
+    ['声', japanese.voicing], ['息', japanese.airflow], ['唇', japanese.lips], ['声帯', japanese.glottis]
   ]);
 
   makeInfoRows(elements.candidateInfo, [
-    ['IPA', candidate.ipa],
-    ['調音点', candidate.place],
-    ['調音法', candidate.manner],
-    ['声', candidate.voicing],
-    ['息', candidate.airflow],
-    ['比較メモ', candidate.comparison]
+    ['IPA', candidate.ipa], ['調音点', candidate.place], ['調音法', candidate.manner],
+    ['声', candidate.voicing], ['息', candidate.airflow], ['比較メモ', candidate.comparison]
   ]);
 
   elements.coachingList.innerHTML = japanese.coaching.map((item) => `<li>${item}</li>`).join('');
   elements.statusBadge.textContent = `status: ${sound.status}`;
   elements.confidenceBadge.textContent = `confidence: ${sound.confidence}`;
-  elements.previewStatus.textContent = `表示：${scenes.find((scene) => scene.id === state.sceneId)?.label || state.sceneId}${state.locked ? '（ロック中）' : ''}`;
+  elements.previewStatus.textContent = `表示：${scenes.find((scene) => scene.id === state.sceneId)?.label || state.sceneId}｜${state.speed}倍${state.locked ? '（ロック中）' : ''}`;
 }
 
 function renderTeacherStage() {
