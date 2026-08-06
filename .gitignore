@@ -1,0 +1,116 @@
+# ============================================================
+# Pronunciation comparison practice
+# Public GitHub Pages repository safety rules
+# ============================================================
+
+# --- Secrets / local configuration ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+secrets/
+secret/
+credentials/
+**/service-account*.json
+**/*credentials*.json
+**/*secret*.json
+
+# --- Private or unreviewed research / participant data ---
+# Never publish learner recordings, identifying information,
+# unlicensed native-speaker recordings, consent forms, or raw research notes.
+private/
+recordings/
+learner-recordings/
+participant-data/
+raw-data/
+consent-forms/
+interviews/
+unreviewed-audio/
+source-audio-private/
+
+# Local-only audio staging. Reviewed/public audio must be copied explicitly
+# into site/assets/audio/public/ after rights and consent are confirmed.
+site/assets/audio/private/
+site/assets/audio/staging/
+site/assets/audio/raw/
+site/assets/audio/**/*.wav.tmp
+site/assets/audio/**/*.mp3.tmp
+
+# --- Generated/build output ---
+dist/
+build/
+out/
+coverage/
+.cache/
+.parcel-cache/
+.vite/
+.next/
+.nuxt/
+.svelte-kit/
+.tmp/
+tmp/
+temp/
+*.tsbuildinfo
+
+# --- Dependencies ---
+node_modules/
+bower_components/
+vendor/
+
+# --- Logs / runtime output ---
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.pid
+*.pid.lock
+
+# --- Test output / browser automation ---
+playwright-report/
+test-results/
+blob-report/
+screenshots-local/
+
+# --- Editors / IDEs ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# --- OS metadata ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Archives / exports ---
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+*.bak
+*.backup
+
+# --- Local notes / handoff copies ---
+LOCAL_NOTES.md
+HANDOFF_LOCAL*
+
+# The static site and public documentation remain tracked by default.
