@@ -1,29 +1,36 @@
+import {
+  interpolatePose,
+  normalizePose,
+  timelineMs,
+  tonguePathFromPose,
+  tongueSurfacePath,
+  withTongueTipOffset
+} from './anatomy.js';
+
 const NS = 'http://www.w3.org/2000/svg';
 
 function el(name, attrs = {}) {
   const node = document.createElementNS(NS, name);
-  Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+  Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
   return node;
 }
 
-function pathFromPose(pose) {
-  const tipX = 70 + pose.tongueTipX;
-  const tipY = 30 + pose.tongueTipY;
-  const bodyY = 33 + pose.tongueBodyY;
-  const arch = pose.tongueArch || 0;
-  return `M 95 129 C ${tipX - 24} ${bodyY + 20}, ${tipX - 10} ${tipY + arch}, ${tipX} ${tipY} C ${tipX + 18} ${tipY + arch * 0.25}, 165 ${bodyY - arch}, 205 ${bodyY + 13} C 177 ${bodyY + 30}, 135 ${bodyY + 35}, 95 129 Z`;
+function lipsFromPose(pose) {
+  const gap = pose.lipGap;
+  const round = pose.lipRound;
+  const protrude = round * 12;
+  const upperY = 105 - gap / 2;
+  const lowerY = 105 + gap / 2 + pose.jaw * 0.35;
+  return {
+    upper: `M 260 ${upperY} C ${272 + protrude} ${upperY - 7}, ${289 + protrude} ${upperY - 4}, ${304 + protrude} ${104 - gap * 0.08}`,
+    lower: `M 260 ${lowerY} C ${272 + protrude} ${lowerY + 7}, ${289 + protrude} ${lowerY + 4}, ${304 + protrude} ${106 + gap * 0.08 + pose.jaw * 0.35}`
+  };
 }
 
-function lipsFromPose(pose) {
-  const gap = pose.lipGap ?? 10;
-  const round = pose.lipRound ?? 0;
-  const protrude = round * 11;
-  const upperY = 70 - gap / 2;
-  const lowerY = 70 + gap / 2;
-  return {
-    upper: `M 238 ${upperY} C ${250 + protrude} ${upperY - 8}, ${267 + protrude} ${upperY - 4}, ${281 + protrude} ${70 - gap * 0.12}`,
-    lower: `M 238 ${lowerY} C ${250 + protrude} ${lowerY + 8}, ${267 + protrude} ${lowerY + 4}, ${281 + protrude} ${70 + gap * 0.12}`
-  };
+function easeInOut(progress) {
+  return progress < 0.5
+    ? 2 * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 }
 
 export class MouthStage {
@@ -31,174 +38,261 @@ export class MouthStage {
     this.container = container;
     this.compact = compact;
     this.animations = [];
-    this.pose = null;
+    this.timers = [];
+    this.frames = [];
+    this.pose = normalizePose();
+    this.speed = 1;
     this.build();
   }
 
   build() {
     this.container.innerHTML = '';
     this.svg = el('svg', {
-      viewBox: '0 0 320 210',
+      viewBox: '0 0 340 230',
       role: 'img',
-      'aria-label': '発音運動を示す簡略口腔断面図',
+      'aria-label': '発音運動を示す口腔矢状断の構造試作図',
       class: `mouth-svg${this.compact ? ' is-compact' : ''}`
     });
 
-    const defs = el('defs');
-    const clip = el('clipPath', { id: `oral-clip-${Math.random().toString(36).slice(2)}` });
-    clip.appendChild(el('path', { d: 'M72 37 C129 6 220 12 268 53 C295 76 293 117 258 139 C209 171 126 178 82 142 C53 119 45 71 72 37 Z' }));
-    defs.appendChild(clip);
-    this.svg.appendChild(defs);
-
-    this.head = el('path', {
-      d: 'M65 31 C128 1 224 8 276 48 C307 72 305 121 265 148 C212 184 119 188 68 150 C31 122 30 64 65 31 Z',
-      class: 'organ organ-head'
+    this.tissue = el('path', {
+      d: 'M 61 29 C 102 6 172 7 222 20 C 260 30 285 50 294 76 C 299 91 298 116 291 131 C 281 153 262 164 246 174 C 228 186 220 202 216 222 L 86 222 C 84 203 80 185 70 169 C 57 149 44 130 40 108 C 35 79 40 47 61 29 Z',
+      class: 'organ organ-tissue'
     });
-    this.svg.appendChild(this.head);
+    this.svg.appendChild(this.tissue);
 
-    this.nasal = el('path', {
-      d: 'M87 47 C129 23 183 25 224 44 C198 52 172 62 154 77 C127 69 105 60 87 47 Z',
+    this.nasalCavity = el('path', {
+      d: 'M 72 53 C 111 31 166 30 215 44 C 235 50 248 58 257 68 C 237 69 218 73 201 81 C 171 73 137 72 105 79 C 91 73 80 64 72 53 Z',
       class: 'organ organ-nasal'
     });
-    this.svg.appendChild(this.nasal);
+    this.svg.appendChild(this.nasalCavity);
 
-    this.palate = el('path', {
-      d: 'M96 67 C130 50 176 47 220 59 C199 65 182 72 163 84 C140 78 117 74 96 67 Z',
-      class: 'organ organ-palate'
+    this.hardPalate = el('path', {
+      d: 'M 101 85 C 133 72 171 72 202 81 C 217 85 228 89 240 91',
+      class: 'organ landmark organ-hard-palate'
     });
-    this.svg.appendChild(this.palate);
+    this.svg.appendChild(this.hardPalate);
 
-    this.teeth = el('path', {
-      d: 'M221 61 L239 63 L239 91 L222 90 Z M221 91 L239 92 L239 112 L224 111 Z',
+    this.softPalate = el('path', {
+      d: 'M 101 85 C 88 94 82 105 83 116 C 84 125 91 131 100 132',
+      class: 'organ landmark organ-soft-palate'
+    });
+    this.svg.appendChild(this.softPalate);
+
+    this.uvula = el('path', {
+      d: 'M 99 130 C 96 138 98 144 103 148 C 108 143 109 136 105 131',
+      class: 'organ organ-uvula'
+    });
+    this.svg.appendChild(this.uvula);
+
+    this.alveolarRidge = el('path', {
+      d: 'M 237 91 C 244 91 251 92 258 95',
+      class: 'organ landmark organ-alveolar'
+    });
+    this.svg.appendChild(this.alveolarRidge);
+
+    this.upperTeeth = el('path', {
+      d: 'M 257 91 L 270 93 L 269 112 L 258 112 Z M 270 93 L 281 96 L 279 113 L 269 112 Z',
       class: 'organ organ-teeth'
     });
-    this.svg.appendChild(this.teeth);
-
-    this.tongueGhost = el('path', {
-      d: pathFromPose({ tongueTipX: 32, tongueTipY: 54, tongueBodyY: 52, tongueArch: 10 }),
-      class: 'organ organ-tongue organ-tongue-ghost'
+    this.lowerTeeth = el('path', {
+      d: 'M 258 119 L 270 118 L 270 136 L 259 137 Z M 270 118 L 281 116 L 281 133 L 270 136 Z',
+      class: 'organ organ-teeth organ-lower-teeth'
     });
-    this.svg.appendChild(this.tongueGhost);
+    this.svg.append(this.upperTeeth, this.lowerTeeth);
 
-    this.tongue = el('path', {
-      d: pathFromPose({ tongueTipX: 32, tongueTipY: 54, tongueBodyY: 52, tongueArch: 10 }),
-      class: 'organ organ-tongue'
+    this.pharynx = el('path', {
+      d: 'M 82 116 C 74 142 75 171 87 199',
+      class: 'organ landmark organ-pharynx'
     });
-    this.svg.appendChild(this.tongue);
+    this.svg.appendChild(this.pharynx);
+
+    this.tongueGhost = el('path', { class: 'organ organ-tongue organ-tongue-ghost' });
+    this.tongue = el('path', { class: 'organ organ-tongue' });
+    this.tongueSurface = el('path', { class: 'organ organ-tongue-surface' });
+    this.svg.append(this.tongueGhost, this.tongue, this.tongueSurface);
 
     this.glottis = el('g', { class: 'organ organ-glottis' });
-    this.glottis.appendChild(el('path', { d: 'M87 130 C78 143 77 160 85 174', class: 'glottis-line glottis-left' }));
-    this.glottis.appendChild(el('path', { d: 'M99 130 C108 143 109 160 101 174', class: 'glottis-line glottis-right' }));
+    this.glottis.append(
+      el('path', { d: 'M 91 179 C 85 189 85 202 91 214', class: 'glottis-line glottis-left' }),
+      el('path', { d: 'M 103 179 C 109 189 109 202 103 214', class: 'glottis-line glottis-right' })
+    );
     this.svg.appendChild(this.glottis);
 
     this.upperLip = el('path', { class: 'organ organ-lip organ-upper-lip' });
     this.lowerLip = el('path', { class: 'organ organ-lip organ-lower-lip' });
-    this.svg.appendChild(this.upperLip);
-    this.svg.appendChild(this.lowerLip);
+    this.svg.append(this.upperLip, this.lowerLip);
 
     this.airflow = el('g', { class: 'organ organ-airflow' });
-    for (let i = 0; i < 7; i += 1) {
-      const particle = el('circle', {
-        cx: String(230 + i * 11),
-        cy: String(69 + (i % 2 ? 4 : -3)),
-        r: String(2.4 - i * 0.12),
+    for (let index = 0; index < 9; index += 1) {
+      this.airflow.appendChild(el('circle', {
+        cx: 255 + index * 8,
+        cy: 105 + (index % 3 - 1) * 4,
+        r: Math.max(1.4, 3 - index * 0.16),
         class: 'air-particle'
-      });
-      this.airflow.appendChild(particle);
+      }));
     }
     this.svg.appendChild(this.airflow);
 
-    this.focusRing = el('ellipse', {
-      cx: '154', cy: '88', rx: '72', ry: '50', class: 'focus-ring'
+    this.velumAir = el('path', {
+      d: 'M 99 124 C 91 107 89 88 99 73',
+      class: 'organ organ-nasal-air'
     });
+    this.svg.appendChild(this.velumAir);
+
+    this.focusRing = el('ellipse', { cx: 165, cy: 117, rx: 128, ry: 88, class: 'focus-ring' });
     this.svg.appendChild(this.focusRing);
 
+    if (!this.compact) {
+      const landmarkGroup = el('g', { class: 'teacher-landmarks' });
+      [
+        [258, 94, '歯槽'], [200, 81, '硬口蓋'], [101, 86, '軟口蓋'],
+        [237, 119, '舌先'], [188, 116, '舌前部'], [128, 139, '舌後部']
+      ].forEach(([cx, cy, label]) => {
+        landmarkGroup.appendChild(el('circle', { cx, cy, r: 2.8, class: 'landmark-dot' }));
+        const text = el('text', { x: cx + 5, y: cy - 5, class: 'landmark-label' });
+        text.textContent = label;
+        landmarkGroup.appendChild(text);
+      });
+      this.svg.appendChild(landmarkGroup);
+    }
+
     this.container.appendChild(this.svg);
+    this.applyPose(this.pose);
+  }
+
+  setPlaybackRate(speed = 1) {
+    this.speed = Math.max(0.25, Number(speed) || 1);
+    this.svg.style.setProperty('--airflow-duration', `${timelineMs(1150, this.speed)}ms`);
+    this.svg.style.setProperty('--glottis-duration', `${timelineMs(140, this.speed)}ms`);
+    this.svg.querySelectorAll('.air-particle').forEach((particle, index) => {
+      particle.style.animationDelay = `${-timelineMs(index * 165, this.speed)}ms`;
+    });
   }
 
   stop() {
     this.animations.forEach((animation) => animation.cancel());
     this.animations = [];
+    this.timers.forEach((timer) => window.clearTimeout(timer));
+    this.timers = [];
+    this.frames.forEach((frame) => window.cancelAnimationFrame(frame));
+    this.frames = [];
     this.svg.classList.remove('is-playing', 'is-imitating', 'is-transitioning', 'is-difference');
   }
 
-  applyPose(pose, { ghostPose = null, duration = 0, easing = 'ease-in-out' } = {}) {
-    this.pose = pose;
-    const lips = lipsFromPose(pose);
-    const tonguePath = pathFromPose(pose);
+  renderPose(pose, ghostPose = null) {
+    const normalized = normalizePose(pose);
+    this.pose = normalized;
+    const lips = lipsFromPose(normalized);
 
-    if (duration > 0 && this.tongue.getAttribute('d')) {
-      const fadeOut = this.tongue.animate(
-        [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0.35, transform: 'scale(0.985)' }],
-        { duration: duration * 0.42, easing, fill: 'forwards' }
-      );
-      this.animations.push(fadeOut);
-      window.setTimeout(() => {
-        this.tongue.setAttribute('d', tonguePath);
-        const fadeIn = this.tongue.animate(
-          [{ opacity: 0.35, transform: 'scale(0.985)' }, { opacity: 1, transform: 'scale(1)' }],
-          { duration: duration * 0.58, easing, fill: 'forwards' }
-        );
-        this.animations.push(fadeIn);
-      }, duration * 0.4);
-    } else {
-      this.tongue.setAttribute('d', tonguePath);
-    }
-
+    this.tongue.setAttribute('d', tonguePathFromPose(normalized));
+    this.tongueSurface.setAttribute('d', tongueSurfacePath(normalized));
     this.upperLip.setAttribute('d', lips.upper);
     this.lowerLip.setAttribute('d', lips.lower);
-    this.svg.style.setProperty('--airflow-strength', String(pose.airflow ?? 0));
-    this.svg.style.setProperty('--jaw-shift', `${pose.jaw ?? 0}px`);
-    this.svg.classList.toggle('is-voiced', Boolean(pose.voiced));
-    this.svg.classList.toggle('is-lip-dental', Boolean(pose.lipDental));
-    this.svg.classList.toggle('is-tap', Boolean(pose.tap));
-    this.svg.classList.toggle('is-trill', Boolean(pose.trill));
+    this.lowerTeeth.style.transform = `translateY(${normalized.jaw * 0.35}px)`;
+    this.svg.style.setProperty('--airflow-strength', String(normalized.airflow));
+    this.svg.style.setProperty('--velum-opacity', String(Math.min(1, Math.max(0, normalized.velumOpen))));
+    this.svg.classList.toggle('is-voiced', normalized.voiced);
+    this.svg.classList.toggle('is-lip-dental', normalized.lipDental);
 
     if (ghostPose) {
-      this.tongueGhost.setAttribute('d', pathFromPose(ghostPose));
+      this.tongueGhost.setAttribute('d', tonguePathFromPose(ghostPose));
       this.tongueGhost.style.opacity = '1';
     } else {
       this.tongueGhost.style.opacity = '0';
     }
   }
 
+  applyPose(pose, { ghostPose = null, duration = 0 } = {}) {
+    const target = normalizePose(pose);
+    if (!duration) {
+      this.renderPose(target, ghostPose);
+      return;
+    }
+
+    const source = normalizePose(this.pose);
+    const startedAt = performance.now();
+    const step = (now) => {
+      const rawProgress = Math.min(1, (now - startedAt) / duration);
+      this.renderPose(interpolatePose(source, target, easeInOut(rawProgress)), ghostPose);
+      if (rawProgress < 1) {
+        const frame = window.requestAnimationFrame(step);
+        this.frames.push(frame);
+      }
+    };
+    const frame = window.requestAnimationFrame(step);
+    this.frames.push(frame);
+  }
+
   setFocus(focus = 'all') {
     this.svg.dataset.focus = focus;
     const focusMap = {
-      tongue: { cx: 151, cy: 98, rx: 84, ry: 58 },
-      lips: { cx: 258, cy: 78, rx: 45, ry: 38 },
-      airflow: { cx: 258, cy: 76, rx: 67, ry: 38 },
-      voice: { cx: 91, cy: 150, rx: 39, ry: 48 },
-      all: { cx: 162, cy: 100, rx: 128, ry: 82 }
+      tongue: { cx: 173, cy: 126, rx: 91, ry: 61 },
+      lips: { cx: 283, cy: 106, rx: 48, ry: 39 },
+      airflow: { cx: 287, cy: 105, rx: 72, ry: 39 },
+      voice: { cx: 97, cy: 197, rx: 37, ry: 35 },
+      all: { cx: 170, cy: 119, rx: 136, ry: 93 }
     };
     const target = focusMap[focus] || focusMap.all;
-    Object.entries(target).forEach(([key, value]) => this.focusRing.setAttribute(key, String(value)));
+    Object.entries(target).forEach(([key, value]) => this.focusRing.setAttribute(key, value));
+  }
+
+  animateTongueTip(pose, { cycles = 1, duration = 600, iterations = 1 } = {}) {
+    const basePose = normalizePose(pose);
+    const contactPose = withTongueTipOffset(basePose, -8, -1);
+    const startedAt = performance.now();
+    const totalDuration = duration * iterations;
+
+    const step = (now) => {
+      const elapsed = now - startedAt;
+      const overallProgress = Math.min(1, elapsed / totalDuration);
+      const local = (elapsed % duration) / duration;
+      const wave = Math.max(0, Math.sin(local * Math.PI * 2 * cycles));
+      this.renderPose(interpolatePose(basePose, contactPose, wave));
+      if (overallProgress < 1) {
+        const frame = window.requestAnimationFrame(step);
+        this.frames.push(frame);
+      } else {
+        this.renderPose(basePose);
+      }
+    };
+    const frame = window.requestAnimationFrame(step);
+    this.frames.push(frame);
   }
 
   play(pose, { speed = 1, focus = 'all', mode = 'normal', sourcePose = null } = {}) {
     this.stop();
+    this.setPlaybackRate(speed);
     this.setFocus(focus);
-    const base = Math.max(280, 900 / Math.max(speed, 0.25));
+    const normalized = normalizePose(pose);
+    const base = timelineMs(900, this.speed);
 
     if (mode === 'transition' && sourcePose) {
-      this.applyPose(sourcePose);
-      this.svg.classList.add('is-transitioning');
-      window.setTimeout(() => this.applyPose(pose, { duration: base * 0.82 }), 90);
+      this.renderPose(sourcePose);
+      this.svg.classList.add('is-transitioning', 'is-playing');
+      const timer = window.setTimeout(
+        () => this.applyPose(normalized, { duration: base * 0.9 }),
+        timelineMs(130, this.speed)
+      );
+      this.timers.push(timer);
       return;
     }
 
     if (mode === 'difference' && sourcePose) {
-      this.applyPose(pose, { ghostPose: sourcePose });
+      this.renderPose(normalized, sourcePose);
       this.svg.classList.add('is-difference');
       const pulse = this.focusRing.animate(
-        [{ opacity: 0.15, transform: 'scale(0.94)' }, { opacity: 0.9, transform: 'scale(1.05)' }, { opacity: 0.15, transform: 'scale(0.94)' }],
+        [
+          { opacity: 0.15, transform: 'scale(0.94)' },
+          { opacity: 0.9, transform: 'scale(1.05)' },
+          { opacity: 0.15, transform: 'scale(0.94)' }
+        ],
         { duration: base * 1.25, iterations: Infinity, easing: 'ease-in-out' }
       );
       this.animations.push(pulse);
       return;
     }
 
-    this.applyPose(pose);
+    this.renderPose(normalized);
     this.svg.classList.add('is-playing');
 
     if (mode === 'imitate') {
@@ -206,9 +300,9 @@ export class MouthStage {
       const stagePulse = this.svg.animate(
         [
           { opacity: 1, transform: 'scale(1)' },
-          { opacity: 1, transform: 'scale(1.015)', offset: 0.28 },
-          { opacity: 0.5, transform: 'scale(0.99)', offset: 0.44 },
-          { opacity: 0.5, transform: 'scale(0.99)', offset: 0.78 },
+          { opacity: 1, transform: 'scale(1.012)', offset: 0.28 },
+          { opacity: 0.48, transform: 'scale(0.992)', offset: 0.44 },
+          { opacity: 0.48, transform: 'scale(0.992)', offset: 0.78 },
           { opacity: 1, transform: 'scale(1)' }
         ],
         { duration: base * 2.2, iterations: 3, easing: 'ease-in-out' }
@@ -216,20 +310,12 @@ export class MouthStage {
       this.animations.push(stagePulse);
     }
 
-    if (pose.tap) {
-      const taps = pose.trill ? 4 : 1;
-      const frames = [];
-      for (let i = 0; i < taps; i += 1) {
-        frames.push({ transform: 'translateY(9px) rotate(0deg)' });
-        frames.push({ transform: 'translateY(-2px) rotate(-1deg)' });
-      }
-      frames.push({ transform: 'translateY(9px) rotate(0deg)' });
-      const tapAnimation = this.tongue.animate(frames, {
-        duration: base * (pose.trill ? 0.88 : 0.62),
-        iterations: mode === 'imitate' ? 3 : 1,
-        easing: 'ease-in-out'
+    if (normalized.tap) {
+      this.animateTongueTip(normalized, {
+        cycles: normalized.trill ? 4 : 1,
+        duration: base * (normalized.trill ? 0.9 : 0.62),
+        iterations: mode === 'imitate' ? 3 : 1
       });
-      this.animations.push(tapAnimation);
     }
   }
 }
