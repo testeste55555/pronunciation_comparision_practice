@@ -1,11 +1,12 @@
 import { defaultState, sounds } from './data.js';
+import { timelineMs } from './anatomy.js';
 import { MouthStage } from './mouth.js';
 
 const STORAGE_KEY = 'pronunciation-comparison-state-v1';
 const CHANNEL_NAME = 'pronunciation-comparison-channel-v1';
 const channel = 'BroadcastChannel' in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 const stageElement = document.querySelector('#learnerStage');
-const mouth = new MouthStage(document.querySelector('#learnerMouth'));
+const mouth = new MouthStage(document.querySelector('#learnerMouth'), { compact: true });
 const params = new URLSearchParams(location.search);
 const preview = params.get('preview') === '1';
 let state = readState();
@@ -28,6 +29,7 @@ function applyState(nextState) {
   const scene = state.sceneId;
   const speed = state.speed;
 
+  stageElement.style.setProperty('--imitate-duration', `${timelineMs(4400, speed)}ms`);
   stageElement.classList.toggle('is-blank', scene === 'blank');
   stageElement.classList.toggle('is-imitate', scene === 'imitate');
   mouth.stop();
