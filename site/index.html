@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="教師提示用・発音比較口腔図アプリ MVP">
+  <meta name="description" content="教師提示用・発音比較口腔図アプリ 構造試作版">
   <title>発音比較・口腔図アプリ｜教師用</title>
   <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
   <div class="teacher-app">
+    <div class="prototype-banner">UI・構造確認用仮モデル｜音声学的監修前・授業使用不可</div>
     <header class="teacher-header">
       <div>
         <h1>発音比較・口腔図アプリ</h1>
@@ -40,7 +41,7 @@
             <div class="speed-tabs" id="speedTabs"></div>
           </div>
 
-          <div class="notice" id="profileWarning"></div>
+          <div class="notice is-critical" id="profileWarning"></div>
 
           <div class="info-section">
             <h3>日本語モデル</h3>
@@ -85,6 +86,16 @@
           </div>
         </section>
 
+        <section class="panel" aria-labelledby="referenceTitle">
+          <h2 class="panel-title" id="referenceTitle">基準資料（教師確認用）</h2>
+          <div class="panel-body">
+            <figure class="reference-figure">
+              <img src="assets/vendor/phonetics/neutral.svg" alt="音声学教育用の中立口腔矢状断図">
+              <figcaption>CC0公開資料をデプロイ時に固定版で取得。現行アニメーションの正確性を保証するものではなく、形状校正の参照に限定します。</figcaption>
+            </figure>
+          </div>
+        </section>
+
         <section class="panel" aria-labelledby="safetyTitle">
           <h2 class="panel-title" id="safetyTitle">投影・データ安全</h2>
           <div class="panel-body">
@@ -94,15 +105,16 @@
             <div class="info-section">
               <h3>現在の実装状態</h3>
               <ul>
-                <li>口腔運動：UI確認用の暫定モデル</li>
-                <li>母語モデル：比較候補としてのみ使用</li>
+                <li>舌：6制御点による連続変形へ移行</li>
+                <li>速度：舌・唇・息・声帯・模倣待機を同期</li>
+                <li>母語モデル：比較仮説としてのみ使用</li>
                 <li>音声：未登録。模範音として使用不可</li>
                 <li>自動採点：未実装</li>
               </ul>
             </div>
             <div class="info-section">
-              <h3>簡略モデルについて</h3>
-              <div class="notice" id="modelNote"></div>
+              <h3>構造試作モデルについて</h3>
+              <div class="notice is-critical" id="modelNote"></div>
             </div>
           </div>
         </section>
